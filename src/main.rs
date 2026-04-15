@@ -4,6 +4,7 @@ use std::process;
 mod file_scanner;
 mod line_counter;
 mod languages;
+mod cocomo;
 
 fn main() {
     // Parse command-line arguments
@@ -31,14 +32,30 @@ fn main() {
     println!("File                                     Lines     Blanks    Comments      Code");
     println!("───────────────────────────────────────────────────────────────────────────────");
 
+    let mut total_code_lines = 0;
+
     for file in all_files {
         match line_counter::count_lines(&file) {
             Ok((total_lines, blank_lines, comment_lines, code_lines)) => {
                 println!("{:<45} {:>8} {:>8} {:>10} {:>10}", file, total_lines, blank_lines, comment_lines, code_lines);
+                total_code_lines += code_lines;
             }
             Err(e) => {
                 eprintln!("Error reading file {}: {}", file, e);
             }
         }
+    }
+
+    // Calculate and display COCOMO estimates
+    if total_code_lines > 0 {
+        let cocomo_result = cocomo::calculate_cocomo(total_code_lines);
+        println!("\n───────────────────────────────────────────────────────────────────────────────");
+        println!("COCOMO Estimates:");
+        println!("Total Lines of Code (LOC): {}", total_code_lines);
+        println!("Effort (person-months): {:.2}", cocomo_result.effort);
+        println!("Time (months): {:.2}", cocomo_result.time);
+        println!("Number of Developers: {:.2}", cocomo_result.developers);
+    } else {
+        println!("\nNo code lines found. COCOMO estimates cannot be calculated.");
     }
 }
