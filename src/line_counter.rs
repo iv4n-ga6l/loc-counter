@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
+use crate::languages::LANGUAGES;
 
 /// Counts the total lines, blank lines, comment lines, and code lines in a given file.
 ///
@@ -18,6 +19,14 @@ pub fn count_lines(file_path: &str) -> io::Result<(usize, usize, usize, usize)> 
     let mut comment_lines = 0;
     let mut code_lines = 0;
 
+    let extension = file_path.split('.').last().unwrap_or("");
+    let config = LANGUAGES.get(extension);
+
+    if config.is_none() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "Unsupported file extension"));
+    }
+
+    let config = config.unwrap();
     let mut in_multiline_comment = false;
     let mut in_markdown_code_block = false;
 
@@ -28,43 +37,36 @@ pub fn count_lines(file_path: &str) -> io::Result<(usize, usize, usize, usize)> 
 
         if trimmed.is_empty() {
             blank_lines += 1;
-        } else if file_path.ends_with(".rs") {
+        } else if let Some(single_line_comment) = config.single_line_comment {
             if in_multiline_comment {
-                // If already inside a multi-line comment, count as a comment line
                 comment_lines += 1;
-                if trimmed.ends_with("*/") {
-                    in_multiline_comment = false;
+                if let Some(end) = config.multi_line_comment_end {
+                    if trimmed.ends_with(end) {
+                        in_multiline_comment = false;
+                    }
                 }
-            } else if trimmed.starts_with("//") {
-                // Single-line comment
+            } else if trimmed.starts_with(single_line_comment) {
                 comment_lines += 1;
-            } else if let Some(start_idx) = trimmed.find("/*") {
-                // Line contains the start of a multi-line comment
-                comment_lines += 1;
-                if !trimmed.ends_with("*/") {
-                    in_multiline_comment = true;
-                }
-
-                // Check if there's code before the start of the multi-line comment
-                if start_idx > 0 {
+            } else if let (Some(start), Some(end)) = (config.multi_line_comment_start, config.multi_line_comment_end) {
+                if trimmed.starts_with(start) {
+                    comment_lines += 1;
+                    if !trimmed.ends_with(end) {
+                        in_multiline_comment = true;
+                    }
+                } else {
                     code_lines += 1;
                 }
             } else {
-                // Regular code line
                 code_lines += 1;
             }
-        } else if file_path.ends_with(".txt") {
-            // For plain text files, count non-blank lines as code lines
-            if !trimmed.is_empty() {
-                code_lines += 1;
-            }
-        } else if file_path.ends_with(".md") {
-            // For Markdown files, handle code blocks
+        } else if extension == "md" {
             if trimmed.starts_with("```") {
                 in_markdown_code_block = !in_markdown_code_block;
             } else if in_markdown_code_block {
                 code_lines += 1;
             }
+        } else {
+            code_lines += 1;
         }
     }
 

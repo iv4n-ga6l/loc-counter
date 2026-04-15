@@ -3,6 +3,7 @@ use std::process;
 
 mod file_scanner;
 mod line_counter;
+mod languages;
 
 fn main() {
     // Parse command-line arguments
@@ -14,37 +15,30 @@ fn main() {
 
     let starting_directory = &args[1];
 
+    // Collect all supported file extensions from the language configuration
+    let extensions: Vec<&str> = languages::LANGUAGES.keys().cloned().collect();
+
     // Scan the directory for source files
-    match file_scanner::scan_directory_for_source_files(starting_directory, "rs") {
-        Ok(mut rs_files) => {
-            match file_scanner::scan_directory_for_source_files(starting_directory, "txt") {
-                Ok(mut txt_files) => rs_files.append(&mut txt_files),
-                Err(e) => eprintln!("Error scanning for .txt files: {}", e),
-            };
-
-            match file_scanner::scan_directory_for_source_files(starting_directory, "md") {
-                Ok(mut md_files) => rs_files.append(&mut md_files),
-                Err(e) => eprintln!("Error scanning for .md files: {}", e),
-            };
-
-            println!("───────────────────────────────────────────────────────────────────────────────");
-            println!("File                                     Lines     Blanks    Comments      Code");
-            println!("───────────────────────────────────────────────────────────────────────────────");
-
-            for file in rs_files {
-                match line_counter::count_lines(&file) {
-                    Ok((total_lines, blank_lines, comment_lines, code_lines)) => {
-                        println!("{:<45} {:>8} {:>8} {:>10} {:>10}", file, total_lines, blank_lines, comment_lines, code_lines);
-                    }
-                    Err(e) => {
-                        eprintln!("Error reading file {}: {}", file, e);
-                    }
-                }
-            }
+    let mut all_files = Vec::new();
+    for extension in extensions {
+        match file_scanner::scan_directory_for_source_files(starting_directory, extension) {
+            Ok(mut files) => all_files.append(&mut files),
+            Err(e) => eprintln!("Error scanning for .{} files: {}", extension, e),
         }
-        Err(e) => {
-            eprintln!("Error scanning directory: {}", e);
-            process::exit(1);
+    }
+
+    println!("───────────────────────────────────────────────────────────────────────────────");
+    println!("File                                     Lines     Blanks    Comments      Code");
+    println!("───────────────────────────────────────────────────────────────────────────────");
+
+    for file in all_files {
+        match line_counter::count_lines(&file) {
+            Ok((total_lines, blank_lines, comment_lines, code_lines)) => {
+                println!("{:<45} {:>8} {:>8} {:>10} {:>10}", file, total_lines, blank_lines, comment_lines, code_lines);
+            }
+            Err(e) => {
+                eprintln!("Error reading file {}: {}", file, e);
+            }
         }
     }
 }
