@@ -19,6 +19,7 @@ pub fn count_lines(file_path: &str) -> io::Result<(usize, usize, usize, usize)> 
     let mut code_lines = 0;
 
     let mut in_multiline_comment = false;
+    let mut in_markdown_code_block = false;
 
     for line in reader.lines() {
         let line = line?;
@@ -27,29 +28,43 @@ pub fn count_lines(file_path: &str) -> io::Result<(usize, usize, usize, usize)> 
 
         if trimmed.is_empty() {
             blank_lines += 1;
-        } else if in_multiline_comment {
-            // If already inside a multi-line comment, count as a comment line
-            comment_lines += 1;
-            if trimmed.ends_with("*/") {
-                in_multiline_comment = false;
-            }
-        } else if trimmed.starts_with("//") {
-            // Single-line comment
-            comment_lines += 1;
-        } else if let Some(start_idx) = trimmed.find("/*") {
-            // Line contains the start of a multi-line comment
-            comment_lines += 1;
-            if !trimmed.ends_with("*/") {
-                in_multiline_comment = true;
-            }
+        } else if file_path.ends_with(".rs") {
+            if in_multiline_comment {
+                // If already inside a multi-line comment, count as a comment line
+                comment_lines += 1;
+                if trimmed.ends_with("*/") {
+                    in_multiline_comment = false;
+                }
+            } else if trimmed.starts_with("//") {
+                // Single-line comment
+                comment_lines += 1;
+            } else if let Some(start_idx) = trimmed.find("/*") {
+                // Line contains the start of a multi-line comment
+                comment_lines += 1;
+                if !trimmed.ends_with("*/") {
+                    in_multiline_comment = true;
+                }
 
-            // Check if there's code before the start of the multi-line comment
-            if start_idx > 0 {
+                // Check if there's code before the start of the multi-line comment
+                if start_idx > 0 {
+                    code_lines += 1;
+                }
+            } else {
+                // Regular code line
                 code_lines += 1;
             }
-        } else {
-            // Regular code line
-            code_lines += 1;
+        } else if file_path.ends_with(".txt") {
+            // For plain text files, count non-blank lines as code lines
+            if !trimmed.is_empty() {
+                code_lines += 1;
+            }
+        } else if file_path.ends_with(".md") {
+            // For Markdown files, handle code blocks
+            if trimmed.starts_with("```") {
+                in_markdown_code_block = !in_markdown_code_block;
+            } else if in_markdown_code_block {
+                code_lines += 1;
+            }
         }
     }
 
