@@ -28,18 +28,27 @@ pub fn count_lines(file_path: &str) -> io::Result<(usize, usize, usize, usize)> 
         if trimmed.is_empty() {
             blank_lines += 1;
         } else if in_multiline_comment {
+            // If already inside a multi-line comment, count as a comment line
             comment_lines += 1;
             if trimmed.ends_with("*/") {
                 in_multiline_comment = false;
             }
         } else if trimmed.starts_with("//") {
+            // Single-line comment
             comment_lines += 1;
-        } else if trimmed.starts_with("/*") {
+        } else if let Some(start_idx) = trimmed.find("/*") {
+            // Line contains the start of a multi-line comment
             comment_lines += 1;
             if !trimmed.ends_with("*/") {
                 in_multiline_comment = true;
             }
+
+            // Check if there's code before the start of the multi-line comment
+            if start_idx > 0 {
+                code_lines += 1;
+            }
         } else {
+            // Regular code line
             code_lines += 1;
         }
     }
